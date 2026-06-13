@@ -35,13 +35,20 @@ from lerobot.types import RobotAction, RobotObservation
 from lerobot.utils.robot_utils import precise_sleep
 from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
-FPS = 30
+FPS = 60
+
+# B6 gripper toggle: each press flips between fully open and fully closed and
+# commands that fixed endpoint, so the servo holds torque there (e.g. to grip an
+# object). Range is 0..100 — swap these two if your gripper opens/closes the
+# other way. Back CLOSED off from 100 (e.g. 90) if the servo stalls/overheats.
+GRIPPER_OPEN_POS = 0.0
+GRIPPER_CLOSED_POS = 100.0
 
 
 def main():
     # Initialize the robot and teleoperator
     robot_config = SO100FollowerConfig(
-        port="/dev/tty.usbmodem5A460814411", id="my_awesome_follower_arm", use_degrees=True
+        port="/dev/tty.usbmodem5B7B0166391", id="so101", use_degrees=True
     )
     teleop_config = PhoneConfig(phone_os=PhoneOS.IOS)  # or PhoneOS.ANDROID
 
@@ -56,6 +63,22 @@ def main():
         joint_names=list(robot.bus.motors.keys()),
     )
 
+    # Flip the IK weight ratio to prioritize ORIENTATION over position.
+    # Library default is position=1.0, orientation=0.01 (position wins 100:1).
+    # Here we invert it: orientation is held ~100x tighter and position becomes the
+    # soft DOF that gives. This suppresses angular creep, but expect x/y/z to drift
+    # instead, and near the 5-DOF-unreachable yaw the solver will sacrifice position
+    # hard to chase orientation. The IK step calls inverse_kinematics() with only the
+    # two positional args, so these flipped defaults take effect.
+    _orig_ik = kinematics_solver.inverse_kinematics
+
+    def _ik_orientation_priority(
+        current_joint_pos, desired_ee_pose, position_weight=1, orientation_weight=0.01
+    ):
+        return _orig_ik(current_joint_pos, desired_ee_pose, position_weight, orientation_weight)
+
+    kinematics_solver.inverse_kinematics = _ik_orientation_priority
+
     # Build pipeline to convert phone action to ee pose action to joint action
     phone_to_robot_joints_processor = RobotProcessorPipeline[
         tuple[RobotAction, RobotObservation], RobotAction
@@ -64,13 +87,13 @@ def main():
             MapPhoneActionToRobotAction(platform=teleop_config.phone_os),
             EEReferenceAndDelta(
                 kinematics=kinematics_solver,
-                end_effector_step_sizes={"x": 0.5, "y": 0.5, "z": 0.5},
+                end_effector_step_sizes={"x": 0.1, "y": 0.1, "z": 0.1},
                 motor_names=list(robot.bus.motors.keys()),
                 use_latched_reference=True,
             ),
             EEBoundsAndSafety(
-                end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
-                max_ee_step_m=0.10,
+                end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [0.8, 0.8, 0.8]},
+                max_ee_step_m=0.3,
             ),
             GripperVelocityToJoint(
                 speed_factor=20.0,
@@ -96,17 +119,28 @@ def main():
         raise ValueError("Robot or teleop is not connected!")
 
     print("Starting teleop loop. Move your phone to teleoperate the robot...")
+    gripper_closed = False
+    prev_b6 = 0
     while True:
         t0 = time.perf_counter()
 
         # Get robot observation
         robot_obs = robot.get_observation()
-
         # Get teleop action
         phone_obs = teleop_device.get_action()
 
         # Phone -> EE pose -> Joints transition
         joint_action = phone_to_robot_joints_processor((phone_obs, robot_obs))
+
+        # B6 toggles the gripper between fully open and fully closed. Each rising
+        # edge flips the target; we command a fixed endpoint (overriding the analog
+        # gripper control) so the servo keeps applying torque against an object
+        # instead of just tracking its measured position.
+        b6 = int(phone_obs.get("phone.raw_inputs", {}).get("b6", 0)) if phone_obs else 0
+        if b6 and not prev_b6:  # rising edge
+            gripper_closed = not gripper_closed
+        prev_b6 = b6
+        joint_action["gripper.pos"] = GRIPPER_CLOSED_POS if gripper_closed else GRIPPER_OPEN_POS
 
         # Send action to robot
         _ = robot.send_action(joint_action)
