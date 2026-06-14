@@ -89,12 +89,12 @@ def main():
             MapPhoneActionToRobotAction(platform=teleop_config.phone_os),
             EEReferenceAndDelta(
                 kinematics=kinematics_solver,
-                end_effector_step_sizes={"x": 0.1, "y": 0.1, "z": 0.1},
+                end_effector_step_sizes={"x": 1, "y": 1, "z": 1},
                 motor_names=list(robot.bus.motors.keys()),
                 use_latched_reference=True,
             ),
             EEBoundsAndSafety(
-                end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [0.8, 0.8, 0.8]},
+                end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [1.5, 1.5, 1.5]},
                 max_ee_step_m=0.3,
             ),
             GripperVelocityToJoint(
@@ -120,6 +120,7 @@ def main():
     print("Starting teleop loop. Squeeze the controller trigger to teleoperate...")
     gripper_closed = False  # which endpoint the A button holds at
     prev_button_a = False
+    step = 0
     while True:
         t0 = time.perf_counter()
 
@@ -127,6 +128,13 @@ def main():
         robot_obs = robot.get_observation()
         # Get teleop action
         phone_obs = teleop_device.get_action()
+
+        # Log the WebXR input diagnostics ~1x/sec so the terminal shows whether the
+        # Quest is streaming the controller or the headset (inputSources / poseSource).
+        if step % FPS == 0:
+            msg = getattr(getattr(teleop_device, "_phone_impl", None), "_latest_message", None) or {}
+            print(f"[webxr] device={msg.get('device')} | {msg.get('debug')}")
+        step += 1
 
         # Phone -> EE pose -> Joints transition
         joint_action = phone_to_robot_joints_processor((phone_obs, robot_obs))
