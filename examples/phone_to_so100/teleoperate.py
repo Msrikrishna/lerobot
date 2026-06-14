@@ -33,7 +33,6 @@ from lerobot.teleoperators.phone.config_phone import PhoneOS
 from lerobot.teleoperators.phone.phone_processor import MapPhoneActionToRobotAction
 from lerobot.types import RobotAction, RobotObservation
 from lerobot.utils.robot_utils import precise_sleep
-from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
 FPS = 60
 
@@ -115,9 +114,6 @@ def main():
     robot.connect()
     teleop_device.connect()
 
-    # Init rerun viewer
-    init_rerun(session_name="phone_so100_teleop")
-
     if not robot.is_connected or not teleop_device.is_connected:
         raise ValueError("Robot or teleop is not connected!")
 
@@ -148,9 +144,6 @@ def main():
 
         # Send action to robot
         _ = robot.send_action(joint_action)
-
-        # Visualize
-        log_rerun_data(observation=phone_obs, action=joint_action)
 
         precise_sleep(max(1.0 / FPS - (time.perf_counter() - t0), 0.0))
 
