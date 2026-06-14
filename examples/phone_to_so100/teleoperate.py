@@ -37,9 +37,9 @@ from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
 FPS = 60
 
-# B6 gripper toggle: each press flips between fully open and fully closed and
-# commands that fixed endpoint, so the servo holds torque there (e.g. to grip an
-# object). Range is 0..100 — swap these two if your gripper opens/closes the
+# Gripper endpoints for the A-button toggle: each press flips between fully open and
+# fully closed and commands that fixed endpoint, so the servo holds torque there (e.g.
+# to grip an object). Range is 0..100 — swap these two if your gripper opens/closes the
 # other way. Back CLOSED off from 100 (e.g. 90) if the servo stalls/overheats.
 GRIPPER_OPEN_POS = 0.0
 GRIPPER_CLOSED_POS = 100.0
@@ -50,7 +50,10 @@ def main():
     robot_config = SO100FollowerConfig(
         port="/dev/tty.usbmodem5B7B0166391", id="so101", use_degrees=True
     )
-    teleop_config = PhoneConfig(phone_os=PhoneOS.IOS)  # or PhoneOS.ANDROID
+    # ANDROID = the teleop WebXR path, which also drives a Meta Quest 3: open the
+    # served https://<this-machine-ip>:4443 page in the Quest Browser, enter VR, and
+    # use the right Touch controller (trigger = enable/clutch, A button = gripper).
+    teleop_config = PhoneConfig(phone_os=PhoneOS.ANDROID)
 
     # Initialize the robot and teleoperator
     robot = SO100Follower(robot_config)
@@ -118,9 +121,9 @@ def main():
     if not robot.is_connected or not teleop_device.is_connected:
         raise ValueError("Robot or teleop is not connected!")
 
-    print("Starting teleop loop. Move your phone to teleoperate the robot...")
-    gripper_closed = False
-    prev_b6 = 0
+    print("Starting teleop loop. Squeeze the controller trigger to teleoperate...")
+    gripper_closed = False  # which endpoint the A button holds at
+    prev_button_a = False
     while True:
         t0 = time.perf_counter()
 
@@ -132,14 +135,15 @@ def main():
         # Phone -> EE pose -> Joints transition
         joint_action = phone_to_robot_joints_processor((phone_obs, robot_obs))
 
-        # B6 toggles the gripper between fully open and fully closed. Each rising
-        # edge flips the target; we command a fixed endpoint (overriding the analog
-        # gripper control) so the servo keeps applying torque against an object
-        # instead of just tracking its measured position.
-        b6 = int(phone_obs.get("phone.raw_inputs", {}).get("b6", 0)) if phone_obs else 0
-        if b6 and not prev_b6:  # rising edge
+        # Gripper: the Quest right-controller A button (reservedButtonA on the WebXR
+        # stream) toggles fully closed / fully open. We command that fixed endpoint
+        # every frame so the servo keeps applying torque (e.g. to grip and hold an
+        # object) instead of just tracking its measured position.
+        raw_inputs = phone_obs.get("phone.raw_inputs", {}) if phone_obs else {}
+        button_a = bool(raw_inputs.get("reservedButtonA", False))
+        if button_a and not prev_button_a:  # rising edge -> flip endpoint
             gripper_closed = not gripper_closed
-        prev_b6 = b6
+        prev_button_a = button_a
         joint_action["gripper.pos"] = GRIPPER_CLOSED_POS if gripper_closed else GRIPPER_OPEN_POS
 
         # Send action to robot
