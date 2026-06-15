@@ -10,6 +10,7 @@
 #   python visualize_so101.py
 
 import argparse
+import csv
 import time
 from pathlib import Path
 
@@ -35,11 +36,12 @@ from lerobot.teleoperators.phone.config_phone import PhoneOS
 from lerobot.teleoperators.phone.phone_processor import MapPhoneActionToRobotAction
 from lerobot.types import RobotAction, RobotObservation
 from lerobot.utils.robot_utils import precise_sleep
+from lerobot.utils.rotation import Rotation
 
 URDF_PATH = Path(__file__).parent / "SO101/so101_new_calib.urdf"
 PORT = "/dev/tty.usbmodem5B7B0166391"
 ROBOT_ID = "so101_follower_auto"
-FPS = 60
+FPS = 30
 
 GRIPPER_OPEN_POS = 0.0
 GRIPPER_CLOSED_POS = 100.0
@@ -77,6 +79,43 @@ def main(connect_robot: bool = True) -> None:
         target_frame_name="gripper_frame_link",
         joint_names=MOTOR_NAMES,
     )
+
+    # IK wrapper: orientation priority + CSV logging for singularity analysis
+    _ik_n = len(kinematics_solver.joint_names)
+    _ik_log_file = open("ik_log.csv", "w", newline="")
+    _ik_log = csv.writer(_ik_log_file)
+    _ik_log.writerow(["t", "tx", "ty", "tz", "trx", "try", "trz",
+                      "pos_err", "rot_err", "dseed", "dprev", "seed", "sol"])
+    _ik_t0 = time.perf_counter()
+    _ik_prev = {"q": None}
+    _orig_ik = kinematics_solver.inverse_kinematics
+
+    def _ik_logged(current_joint_pos, desired_ee_pose, position_weight=1, orientation_weight=0.01):
+        sol = _orig_ik(current_joint_pos, desired_ee_pose, position_weight, orientation_weight)
+        try:
+            seed = np.asarray(current_joint_pos[:_ik_n], dtype=float)
+            q = np.asarray(sol[:_ik_n], dtype=float)
+            tpos = np.asarray(desired_ee_pose[:3, 3], dtype=float)
+            r_t = Rotation.from_matrix(desired_ee_pose[:3, :3])
+            trot = r_t.as_rotvec()
+            t_fk = kinematics_solver.forward_kinematics(sol)
+            pos_err = float(np.linalg.norm(t_fk[:3, 3] - tpos))
+            rot_err = float(np.linalg.norm((Rotation.from_matrix(t_fk[:3, :3]) * r_t.inv()).as_rotvec()))
+            dseed = float(np.linalg.norm(q - seed))
+            dprev = 0.0 if _ik_prev["q"] is None else float(np.linalg.norm(q - _ik_prev["q"]))
+            _ik_prev["q"] = q
+            _ik_log.writerow([f"{time.perf_counter() - _ik_t0:.4f}",
+                               f"{tpos[0]:.5f}", f"{tpos[1]:.5f}", f"{tpos[2]:.5f}",
+                               f"{trot[0]:.5f}", f"{trot[1]:.5f}", f"{trot[2]:.5f}",
+                               f"{pos_err:.6f}", f"{rot_err:.6f}", f"{dseed:.4f}", f"{dprev:.4f}",
+                               " ".join(f"{v:.2f}" for v in seed),
+                               " ".join(f"{v:.2f}" for v in q)])
+            _ik_log_file.flush()
+        except Exception as e:
+            print(f"[ik] log error: {e}")
+        return sol
+
+    kinematics_solver.inverse_kinematics = _ik_logged
 
     # ── Teleop pipeline ──────────────────────────────────────────────────────
     teleop_config = PhoneConfig(phone_os=PhoneOS.ANDROID)
