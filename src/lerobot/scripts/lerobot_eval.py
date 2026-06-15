@@ -72,7 +72,7 @@ from termcolor import colored
 from torch import Tensor, nn
 from tqdm import trange
 
-from lerobot.configs import parser
+from lerobot.configs import FeatureType, parser
 from lerobot.configs.eval import EvalPipelineConfig
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.envs import (
@@ -104,7 +104,7 @@ def _env_features_to_dataset_features(env_features: dict, raw_obs: dict | None =
     """
     features = {}
     for key, ft in env_features.items():
-        if ft.type.value == "visual":
+        if ft.type is FeatureType.VISUAL:
             shape = tuple(ft.shape)
             if raw_obs is not None and key in raw_obs and isinstance(raw_obs[key], np.ndarray):
                 shape = raw_obs[key].shape[1:]  # strip batch dim
