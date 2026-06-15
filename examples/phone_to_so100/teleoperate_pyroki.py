@@ -24,18 +24,11 @@ Usage:
     python teleoperate_pyroki.py
 """
 
-import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import viser
-
-# Robokin may be installed as a package or live as a source tree; add the src
-# directory as a fallback so imports work either way.
-_ROBOKIN_SRC = Path("/Users/srikrishnamannem/Desktop/robokin/src")
-if _ROBOKIN_SRC.exists() and str(_ROBOKIN_SRC) not in sys.path:
-    sys.path.insert(0, str(_ROBOKIN_SRC))
 
 from robokin.pyroki import PyrokiConfig, PyrokiKinematics
 from robokin import pyroki_snippets as pks
