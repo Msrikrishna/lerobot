@@ -47,7 +47,7 @@ GRIPPER_CLOSED_POS = 100.0
 def main():
     # Initialize the robot and teleoperator
     robot_config = SO100FollowerConfig(
-        port="/dev/tty.usbmodem5B7B0166391", id="so101", use_degrees=True
+        port="/dev/tty.usbmodem5B7B0166391", id="so101_follower_auto", use_degrees=True
     )
     # ANDROID = the teleop WebXR path, which also drives a Meta Quest 3: open the
     # served https://<this-machine-ip>:4443 page in the Quest Browser, enter VR, and
