@@ -46,6 +46,11 @@ OUTPUT_DIR="outputs/train/dino_dt_pushT_book" # local checkpoint dir
 # --- Multi-GPU ---------------------------------------------------------------
 NUM_GPUS=4                         # number of GPUs to shard across (e.g. 4 or 8)
 MIXED_PRECISION="bf16"             # bf16 on H100/A100; use "fp16" on older cards
+CUDA_WHEEL="cu128"                 # PyTorch CUDA build to match the box's driver.
+                                   # Default PyPI torch may be built for a newer CUDA
+                                   # than the driver supports -> falls back to CPU.
+                                   # Check the driver's max CUDA with `nvidia-smi`;
+                                   # pick cu128 (driver >=12.8), cu126, or cu121.
 
 # --- Training hyperparameters ----------------------------------------------
 BATCH_SIZE=32                      # PER-GPU batch. Effective batch = BATCH_SIZE * NUM_GPUS
@@ -137,6 +142,15 @@ conda install -y -c conda-forge "ffmpeg<8"
 #   diffusion       -> diffusers (DDIM/DDPM schedulers used by dino_dt)
 #   transformers-dep -> transformers (DINOv3 backbone via AutoModel)
 pip install -e '.[training,diffusion,transformers-dep]'
+
+# Make sure torch can actually see the GPUs. The default torch wheel may be built
+# for a newer CUDA than this box's driver supports, which silently falls back to
+# CPU. Reinstall a matching CUDA build only if CUDA isn't available.
+if ! python -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
+  echo "==> torch can't see CUDA; reinstalling for $CUDA_WHEEL"
+  pip install --force-reinstall torch torchvision --index-url "https://download.pytorch.org/whl/$CUDA_WHEEL"
+  python -c "import torch; print('CUDA now:', torch.cuda.is_available(), 'GPUs:', torch.cuda.device_count())"
+fi
 
 # 5) HF auth (gated DINOv3 backbone + dataset access)
 if [ -n "$HF_TOKEN" ]; then
