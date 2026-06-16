@@ -58,6 +58,9 @@ STEPS=100000                       # total gradient steps
 SAVE_FREQ=10000                    # checkpoint every N steps
 NUM_WORKERS=8                      # dataloader workers PER process
 IMAGE_SIZE=256                     # dino_dt image size, multiple of 16 (256 -> 16x16 tokens)
+VIDEO_BACKEND="pyav"               # "pyav" avoids torchcodec's ffmpeg/libstdc++ loading
+                                   # issues; "torchcodec" is the default but fragile on
+                                   # bare GPU boxes.
 OPTIMIZER_LR="1e-4"                # base LR. With NUM_GPUS the effective batch grows —
                                    # consider scaling up (e.g. ~2e-4 for 4 GPUs). See note below.
 
@@ -174,6 +177,7 @@ accelerate launch \
   --mixed_precision="$MIXED_PRECISION" \
   "$(which lerobot-train)" \
   --dataset.repo_id="$DATASET_REPO_ID" \
+  --dataset.video_backend="$VIDEO_BACKEND" \
   --policy.type=dino_dt \
   --policy.device=cuda \
   --policy.image_size="$IMAGE_SIZE" \
