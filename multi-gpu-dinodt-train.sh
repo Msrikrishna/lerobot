@@ -120,7 +120,7 @@ cd "$WORKDIR"
 # 4) Python env + deps
 if ! conda env list | grep -qE "^\s*${CONDA_ENV}\s"; then
   echo "==> Creating conda env '$CONDA_ENV'"
-  conda create -n "$CONDA_ENV" python=3.10 -y
+  conda create -n "$CONDA_ENV" python=3.12 -y
 fi
 conda activate "$CONDA_ENV"
 
