@@ -39,7 +39,7 @@ BRANCH="dinov3-diffusion-model"
 WORKDIR="$HOME/lerobot"            # where the repo is cloned / found
 
 # --- Data + output ----------------------------------------------------------
-DATASET_REPO_ID="srik410/pushT_book"          # HF dataset to train on
+DATASET_REPO_ID="srik410/makermods_pushT_book"   # HF dataset to train on
 POLICY_REPO_ID="srik410/dino_dt_pushT_book"   # HF repo to push the trained policy to (YOUR account)
 OUTPUT_DIR="outputs/train/dino_dt_pushT_book" # local checkpoint dir
 
