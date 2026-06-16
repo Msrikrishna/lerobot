@@ -132,8 +132,11 @@ conda activate "$CONDA_ENV"
 
 # torchcodec needs ffmpeg < 8 to decode the dataset's mp4 videos
 conda install -y -c conda-forge "ffmpeg<8"
-# install upstream lerobot WITH the training extra (pulls in accelerate + wandb)
-pip install -e '.[training]'
+# install upstream lerobot with the extras dino_dt needs:
+#   training        -> accelerate (multi-GPU) + wandb
+#   diffusion       -> diffusers (DDIM/DDPM schedulers used by dino_dt)
+#   transformers-dep -> transformers (DINOv3 backbone via AutoModel)
+pip install -e '.[training,diffusion,transformers-dep]'
 
 # 5) HF auth (gated DINOv3 backbone + dataset access)
 if [ -n "$HF_TOKEN" ]; then
