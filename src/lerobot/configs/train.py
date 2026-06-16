@@ -189,7 +189,17 @@ class TrainPipelineConfig(HubMixin):
             else:
                 self.job_name = f"{self.env.type}_{active_cfg.type}"
 
-        if not self.resume and isinstance(self.output_dir, Path) and self.output_dir.is_dir():
+        # Only the main process enforces the "already exists" guard. validate() runs
+        # on every rank before the Accelerator coordinates them, and the main process
+        # creates the output dir (logging) — so non-main ranks would otherwise race
+        # and abort here. Non-main ranks never write checkpoints, so they can skip it.
+        is_main_process = os.environ.get("RANK", "0") == "0"
+        if (
+            is_main_process
+            and not self.resume
+            and isinstance(self.output_dir, Path)
+            and self.output_dir.is_dir()
+        ):
             raise FileExistsError(
                 f"Output directory {self.output_dir} already exists and resume is {self.resume}. "
                 f"Please change your output directory so that {self.output_dir} is not overwritten."
