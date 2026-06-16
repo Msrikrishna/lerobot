@@ -46,6 +46,7 @@ from lerobot.utils.feature_utils import dataset_to_policy_features
 
 from .act.configuration_act import ACTConfig
 from .diffusion.configuration_diffusion import DiffusionConfig
+from .dino_dt.configuration_dino_dt import DinoDTConfig
 from .eo1.configuration_eo1 import EO1Config
 from .gaussian_actor.configuration_gaussian_actor import GaussianActorConfig
 from .groot.configuration_groot import GrootConfig
@@ -106,6 +107,10 @@ def get_policy_class(name: str) -> type[PreTrainedPolicy]:
         from .diffusion.modeling_diffusion import DiffusionPolicy
 
         return DiffusionPolicy
+    elif name == "dino_dt":
+        from .dino_dt.modeling_dino_dt import DinoDTPolicy
+
+        return DinoDTPolicy
     elif name == "act":
         from .act.modeling_act import ACTPolicy
 
@@ -192,6 +197,8 @@ def make_policy_config(policy_type: str, **kwargs) -> PreTrainedConfig:
         return TDMPCConfig(**kwargs)
     elif policy_type == "diffusion":
         return DiffusionConfig(**kwargs)
+    elif policy_type == "dino_dt":
+        return DinoDTConfig(**kwargs)
     elif policy_type == "act":
         return ACTConfig(**kwargs)
     elif policy_type == "multi_task_dit":
@@ -335,6 +342,14 @@ def make_pre_post_processors(
         from .diffusion.processor_diffusion import make_diffusion_pre_post_processors
 
         processors = make_diffusion_pre_post_processors(
+            config=policy_cfg,
+            dataset_stats=kwargs.get("dataset_stats"),
+        )
+
+    elif isinstance(policy_cfg, DinoDTConfig):
+        from .dino_dt.processor_dino_dt import make_dino_dt_pre_post_processors
+
+        processors = make_dino_dt_pre_post_processors(
             config=policy_cfg,
             dataset_stats=kwargs.get("dataset_stats"),
         )
