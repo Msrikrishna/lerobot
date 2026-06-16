@@ -56,6 +56,11 @@ IMAGE_SIZE=256                     # dino_dt image size, multiple of 16 (256 -> 
 OPTIMIZER_LR="1e-4"                # base LR. With NUM_GPUS the effective batch grows —
                                    # consider scaling up (e.g. ~2e-4 for 4 GPUs). See note below.
 
+# --- Smoke test -------------------------------------------------------------
+SMOKE_TEST="false"                 # "true" = quick 20-step run to verify the box works
+                                   # (overrides STEPS=20, no checkpointing, no push, no wandb).
+                                   # Run this FIRST on a fresh box, then set back to "false".
+
 # --- Misc -------------------------------------------------------------------
 WANDB_ENABLE="true"                # "false" to skip Weights & Biases
 JOB_NAME="dino_dt_pushT_book_${NUM_GPUS}gpu"
@@ -67,6 +72,17 @@ PUSH_TO_HUB="true"                 # push the final policy to POLICY_REPO_ID
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 #   You normally don't need to edit below this line.
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Smoke-test mode: override to a fast, throwaway run that just proves the box,
+# the data pipeline, and DDP all work end to end.
+if [ "$SMOKE_TEST" = "true" ]; then
+  STEPS=20
+  SAVE_FREQ=1000000          # effectively never checkpoint
+  PUSH_TO_HUB="false"
+  WANDB_ENABLE="false"
+  JOB_NAME="${JOB_NAME}_smoke"
+  echo "==> SMOKE TEST mode: STEPS=$STEPS, no checkpoint/push/wandb"
+fi
 
 echo "==> dino_dt multi-GPU training"
 echo "    dataset   : $DATASET_REPO_ID"
@@ -159,6 +175,7 @@ echo "    REMEMBER to delete the GPU box to stop billing."
 # • LR scaling: LeRobot does NOT auto-scale LR for multi-GPU. Effective batch is
 #   BATCH_SIZE*NUM_GPUS, so bump OPTIMIZER_LR up (linear or sqrt rule) if you see
 #   slower convergence — e.g. 1e-4 -> 2e-4 for 4 GPUs.
-# • First do a smoke test:  set STEPS=20  and confirm loss prints on all ranks,
-#   then reset to the real STEPS.
+# • First do a smoke test:  set SMOKE_TEST="true"  and run — it does a throwaway
+#   20-step run (no checkpoint/push/wandb). Confirm loss prints on all ranks, then
+#   set SMOKE_TEST="false" for the real run.
 # • Resume an interrupted run: re-run with the same OUTPUT_DIR and add --resume=true.
