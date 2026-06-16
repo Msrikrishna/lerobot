@@ -98,12 +98,18 @@ fi
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 
 # 2) conda (install Miniforge if absent — avoids Anaconda ToS prompt)
-if ! command -v conda >/dev/null 2>&1; then
+#    Guard on the install dir, not just `command -v conda`: on a re-run conda may
+#    be installed but not on this shell's PATH, which would otherwise retry the
+#    install and fail on the existing directory.
+if ! command -v conda >/dev/null 2>&1 && [ ! -d "$HOME/miniforge3" ]; then
   echo "==> Installing Miniforge"
   wget -q https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O /tmp/miniforge.sh
   bash /tmp/miniforge.sh -b -p "$HOME/miniforge3"
 fi
-source "$HOME/miniforge3/etc/profile.d/conda.sh"
+# Load conda into this shell (from miniforge if that's how it was installed)
+if [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
+  source "$HOME/miniforge3/etc/profile.d/conda.sh"
+fi
 
 # 3) Clone or update the repo+branch
 if [ -d "$WORKDIR/.git" ]; then
