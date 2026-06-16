@@ -50,7 +50,10 @@ class DinoDTPolicy(PreTrainedPolicy):
     config_class = DinoDTConfig
     name = "dino_dt"
 
-    def __init__(self, config: DinoDTConfig):
+    def __init__(self, config: DinoDTConfig, **kwargs):
+        # 0.5.2 make_policy passes dataset_stats (and possibly other kwargs) to the
+        # constructor; normalization is handled by the processor pipeline, so we
+        # accept and ignore them here, matching the stock policies' **kwargs.
         super().__init__(config)
         config.validate_features()
         self.config = config
